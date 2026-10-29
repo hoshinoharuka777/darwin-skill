@@ -77,7 +77,7 @@ SkillOpt 是首个系统化的**可控文本空间优化器**。skill 文档 `s`
 
 ## 与 darwin-skill 的关系
 
-SkillOpt 提供给达尔文的是 **validation-gated edits 形式化框架**——「keep/revert 棘轮」机制的直接来源:每轮单维改动必须通过盲评胜出才保留,否则回滚,分数只升不降。
+SkillOpt 提供给达尔文的是 **validation-gated edits 形式化框架**——「keep/revert 存档回滚」机制的直接来源:每轮单维改动必须通过盲评胜出才保留,否则回滚,分数只升不降。
 
 达尔文与 SkillOpt 的关键差异:SkillOpt 全自动,达尔文坚持 human-in-the-loop,在基线评估、单维优化、回归测试三处强制人审——skill 质量比 validation loss 更微妙,judge(即使准确率 73.8%)仍每 4 次可能错 1 次。
 
