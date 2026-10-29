@@ -5,7 +5,7 @@ description: "Darwin Skill 2.0 (达尔文.skill 2.0): autonomous skill optimizer
 
 # Darwin Skill 2.0
 
-> **v2.1 · 2026-06-10** — keep/revert 存档回滚从「绝对分数 delta」改为「**paired 同-judge 比较 + 奇数 N 多数决**」（绝对分数 ±8 judge 噪音淹没保守编辑的真实增益、是 false-revert 源；within-judge 比较消除换尺污染）。绝对分数降级为 triage-only。
+> **v2.1 · 2026-06-10** — keep/revert 棘轮从「绝对分数 delta」改为「**paired 同-judge 比较 + 奇数 N 多数决**」（绝对分数 ±8 judge 噪音淹没保守编辑的真实增益、是 false-revert 源；within-judge 比较消除换尺污染）。绝对分数降级为 triage-only。
 > **v2.0 · 2026-05-28** — 吸收 Microsoft Research SkillLens（arXiv 2605.23899）的 9 维评分药方 + SkillOpt（arXiv 2605.23904）的 validation-gated 验证机制 + human in the loop 三层守关。
 >
 > 借鉴 Karpathy autoresearch 的自主实验循环，对 skills 进行持续优化。
@@ -19,7 +19,7 @@ description: "Darwin Skill 2.0 (达尔文.skill 2.0): autonomous skill optimizer
 autoresearch 的精髓：
 1. **单一可编辑资产** — 每次只改一个 SKILL.md
 2. **双重评估** — 结构评分（静态分析）+ 效果验证（跑测试看输出）
-3. **存档回滚机制** — 只保留改进，自动回滚退步
+3. **棘轮机制** — 只保留改进，自动回滚退步
 4. **独立评分** — 评分用子agent，避免「自己改自己评」的偏差
 5. **人在回路** — 每个skill优化完后暂停，用户确认再继续
 
@@ -375,13 +375,13 @@ paired 行：`new_score` 栏记 vote 比数（如 `3-0 better`），`note` 记�
 | # | 反模式 | 为什么不要做 | 替代做法 |
 |---|---|---|---|
 | 1 | **同 context 自评自改** | 改完后立刻在同一 Claude session 打分，会有「我刚改的肯定更好」乐观偏差（SkillLens 实证 LLM-as-judge 准确率仅 46.4%）| 必须 spawn **独立子 agent**；keep/revert 走 **paired 比较**（同 judge 一次读改前+改后）的**奇数 N 多数决**，**不用绝对分数 delta**（绝对分跨 judge ±8 噪音、不可比） |
-| 1b | **拿绝对分数 delta 当 keep/revert 存档回滚** | 绝对总分是抽样不是测量；baseline judge 与 rescore judge 用不同「标准尺」，差值大半是换尺、非真实质量变化（实测一支纯加标记的 skill 单评 −8.5、全是换尺）| 绝对分只做 triage 排名；keep/revert 用 paired 多数决，within-judge cancellation 消除换尺污染 |
+| 1b | **拿绝对分数 delta 当 keep/revert 棘轮** | 绝对总分是抽样不是测量；baseline judge 与 rescore judge 用不同「标准尺」，差值大半是换尺、非真实质量变化（实测一支纯加标记的 skill 单评 −8.5、全是换尺）| 绝对分只做 triage 排名；keep/revert 用 paired 多数决，within-judge cancellation 消除换尺污染 |
 | 2 | **`git reset --hard` 当回滚** | 会丢工作树未提交改动；CI 历史断裂 | 用 `git revert HEAD` 创建反向 commit，保留可追溯链 |
 | 3 | **为凑分增冗余** | 触顶后继续硬改往往是「加废话/加段落让 LLM 觉得更详细」，实际质量不变 | 触顶信号（连续 2 轮 Δ<2 分）→ break 进 Phase 3，**见好就收** |
 | 4 | **跳过 test-prompts 直接评分** | 没有 test-prompts 的 dim8 是凭空打分，权重 23% 等于编造 | Phase 0.5 强制设计 2-3 prompts；若用户不给，默认编 3 个并展示确认 |
 | 5 | **轮内改多个维度** | 多变量同时变，分数升降无法归因到具体改动 | 每轮 1 个维度；相关簇（dim2/3/4）改其一时观察另两个是否跟涨 |
 | 6 | **dry_run 比例 > 30%** | dim8 实测维度形同虚设，分数虚高（早期 40 次记录 67% dry_run，0 revert） | 强制至少 1 个真实 full_test；dry_run 多的优化在 results.tsv 显式打 ⚠️ |
-| 7 | **静默跳过异常** | 遇到 git/tsv 异常时静默继续，破坏存档回滚完整性 | 异常表 10 条 fallback 必须先告知用户再处理 |
+| 7 | **静默跳过异常** | 遇到 git/tsv 异常时静默继续，破坏 ratchet 完整性 | 异常表 10 条 fallback 必须先告知用户再处理 |
 | 8 | **忽视维度相关性单独优化** | dim2/3/4 是相关簇，单独优化 dim2 时常发现已被前轮 dim3 修复推到顶 | 找最大加权短板维度时同时看相关簇短板，决定是否同步改 |
 
 **触发场景**：每轮 Phase 2 改动前对照本表一次。任一反模式命中 → 改方案重写。
@@ -438,8 +438,8 @@ paired 行：`new_score` 栏记 vote 比数（如 `3-0 better`），`note` 记�
 本skill的对应关系：
 - **program.md** → 本文件（评估rubric和约束规则）
 - **train.py** → 每个SKILL.md
-- **val_bpb** → ⚠️ **此处是 1.0 的概念错误源**：autoresearch 的 `val_bpb` 是**确定性 loss**（重跑同数），darwin 套到 **LLM-judge 分数（随机抽样）** 上却沿用「绝对值比大小」存档回滚 → 不可重复的数当可重复用。修正：9 维 rubric 当 **paired 比较准则**、不当绝对 metric
-- **git 存档回滚** → 保留 paired 多数判「改后 ≥ 改前」的 commit（不是「绝对总分更高」的 commit）
+- **val_bpb** → ⚠️ **此处是 1.0 的概念错误源**：autoresearch 的 `val_bpb` 是**确定性 loss**（重跑同数），darwin 套到 **LLM-judge 分数（随机抽样）** 上却沿用「绝对值比大小」棘轮 → 不可重复的数当可重复用。修正：9 维 rubric 当 **paired 比较准则**、不当绝对 metric
+- **git ratchet** → 保留 paired 多数判「改后 ≥ 改前」的 commit（不是「绝对总分更高」的 commit）
 - **test set** → 每个skill的test-prompts.json
 
 区别：增加了人在回路（autoresearch是全自主的，skill优化需要人的判断力），以及双重评估机制（结构+效果），因为skill的「好坏」比loss数值更微妙。
